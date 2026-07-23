@@ -1,0 +1,625 @@
+/* ============================================================================
+   KAIZEN EDITION — Cyberpunk design system
+   Refined / professional neon-glass.
+
+   HARD RULES (do not break):
+   • NO box-shadow anywhere. Glow = blurred ::before/::after halo, text-shadow,
+     or (for leaf inputs) a focus-only drop-shadow filter.
+   • Gradient borders use the background-clip padding trick, never `mask`
+     (mask does not render reliably in Electron).
+   • backdrop-filter:blur is reserved for small / transient floating chrome
+     (.surface-glass). Large always-on panels (.glass) stay opaque + halo so a
+     real-time video render never pays for 6 stacked blurs.
+   ============================================================================ */
+
+@import 'tailwindcss';
+/* Enter/exit + slide/zoom/fade utilities (animate-in, zoom-in-95, slide-in-from-*)
+   that the Radix overlays already reference. v4-native successor to
+   tailwindcss-animate. */
+@import 'tw-animate-css';
+
+/* ----------------------------------------------------------------------------
+   Raw design tokens
+---------------------------------------------------------------------------- */
+:root {
+  color-scheme: dark;
+
+  /* Neon triad — assign roles and hold the line (restraint reads professional) */
+  --neon-1: #22e6ff; /* cyan    — focus / primary / live / telemetry numbers   */
+  --neon-2: #a855f7; /* purple  — mid-tier accents / gradient midpoint          */
+  --neon-3: #ff3df0; /* magenta — destructive / close / "danger" hover only     */
+
+  /* Surfaces (deep → elevated) */
+  --background: #06060f;
+  --titlebar: #080b16;
+  --popover: #090d1a;
+  --card: #0a0e1b;
+  --card-2: #0d1426; /* elevated inner surface (inputs, nested groups)          */
+  --muted: #0e1422;
+  --secondary: #111728;
+
+  /* Foregrounds */
+  --foreground: #e8eeff;
+  --card-foreground: #e8eeff;
+  --popover-foreground: #e8eeff;
+  --secondary-foreground: #d6e0f5;
+  --muted-foreground: #8a9bc2;
+
+  /* Brand semantic */
+  --primary: #22e6ff;
+  --primary-foreground: #03131b;
+  --accent: #ff3df0;
+  --accent-foreground: #1a0019;
+
+  /* Status */
+  --destructive: #ff3b5e;
+  --destructive-foreground: #ffffff;
+  --success: #21f5a3;
+  --success-foreground: #04140d;
+  --warning: #ffc24b;
+  --warning-foreground: #1a1200;
+
+  /* Lines / fields / glass edges */
+  --border: #78c8ff24;
+  --input: #78c8ff30;
+  --ring: #22e6ff;
+  --glass-border: #78c8ff29;
+
+  /* Brand radius (THE radius — use rounded-[var(--radius)]) */
+  --radius: 0.85rem;
+
+  /* Glow recipe consumed by .glow* (override --glow-opacity for tiers) */
+  --glow: linear-gradient(135deg, var(--neon-1), var(--neon-3));
+  --glow-opacity: 0.42;
+
+  /* Motion */
+  --ease-cyber: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ----------------------------------------------------------------------------
+   Tailwind theme wiring — inline so utilities emit var() directly and the
+   /opacity modifier resolves against the raw token (shadcn-v4 pattern).
+---------------------------------------------------------------------------- */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-neon-1: var(--neon-1);
+  --color-neon-2: var(--neon-2);
+  --color-neon-3: var(--neon-3);
+  --color-titlebar: var(--titlebar);
+
+  --font-sans: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Space Grotesk Variable', 'Space Grotesk', 'Inter Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+
+  --ease-cyber: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Named animations (usable as animate-<name>) */
+  --animate-shimmer: shimmer 1.5s linear infinite;
+  --animate-scan: scan 3.2s var(--ease-cyber) infinite;
+  --animate-pulse-glow: pulse-glow 2.4s ease-in-out infinite;
+  --animate-aurora: aurora 18s ease-in-out infinite;
+  --animate-aurora-slow: aurora 26s ease-in-out infinite reverse;
+  --animate-spin-slow: spin 6s linear infinite;
+  --animate-marching: marching 0.6s linear infinite;
+  --animate-flicker: flicker 4s steps(1) infinite;
+}
+
+/* ----------------------------------------------------------------------------
+   Base layer
+---------------------------------------------------------------------------- */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv05', 'cv08', 'ss03';
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Ambient backdrop: two faint corner auroras so the near-black canvas has
+     depth without a single per-element cost. Behind everything, no events. */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(60rem 40rem at 12% -8%, color-mix(in oklab, var(--neon-1) 9%, transparent), transparent 60%),
+      radial-gradient(52rem 38rem at 100% 108%, color-mix(in oklab, var(--neon-3) 8%, transparent), transparent 60%);
+  }
+
+  /* Global CRT scanline — whisper-subtle, sits above content as a screen texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.022) 0,
+      rgba(255, 255, 255, 0.022) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+  }
+
+  /* App content rides above the ambient layers */
+  #root {
+    position: relative;
+    z-index: 2;
+    isolation: isolate;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 5px;
+  }
+
+  /* Tailwind v4 dropped the default pointer cursor on <button>. Restore it for
+     everything interactive so the cursor always signals clickability — and show
+     not-allowed on anything disabled. (Disabled selectors out-specify these, so
+     a disabled button reads not-allowed regardless of order.) */
+  button,
+  [role='button'],
+  [role='menuitem'],
+  [role='menuitemcheckbox'],
+  [role='menuitemradio'],
+  [role='option'],
+  [role='tab'],
+  [role='switch'],
+  [role='radio'],
+  [role='checkbox'],
+  summary,
+  a[href],
+  label:has(> input[type='checkbox']),
+  label:has(> input[type='radio']) {
+    cursor: pointer;
+  }
+  :disabled,
+  [disabled],
+  [data-disabled],
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--neon-1) 38%, transparent);
+    color: #fff;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--neon-1) 24%, transparent) padding-box;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    transition: background-color 0.15s;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--neon-1) 44%, transparent) padding-box;
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   Components / brand utilities
+---------------------------------------------------------------------------- */
+@layer components {
+  .display {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+
+  .drag {
+    -webkit-app-region: drag;
+  }
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  /* — Neon text ——————————————————————————————————————————————— */
+  /* Glows in the element's own color (defaults to cyan via inherited color). */
+  .neon-text {
+    text-shadow:
+      0 0 8px color-mix(in oklab, currentColor 55%, transparent),
+      0 0 22px color-mix(in oklab, currentColor 26%, transparent);
+  }
+  .neon-gradient-text {
+    background: linear-gradient(100deg, var(--neon-1), var(--neon-3));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* — Glass panel ————————————————————————————————————————————————
+     Opaque card surface + 1px neon gradient hairline (background-clip, not
+     mask) + a faint blurred halo. No backdrop-filter (perf): panels are
+     always-on and large. */
+  .glass {
+    position: relative;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    background:
+      linear-gradient(var(--card), var(--card)) padding-box,
+      linear-gradient(
+          135deg,
+          color-mix(in oklab, var(--neon-1) 32%, transparent),
+          color-mix(in oklab, var(--neon-2) 13%, transparent) 55%,
+          color-mix(in oklab, var(--neon-3) 24%, transparent)
+        )
+        border-box;
+  }
+  .glass::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(135deg, var(--neon-1), var(--neon-2) 50%, var(--neon-3));
+    filter: blur(22px);
+    opacity: 0.09;
+  }
+  /* top-edge inner highlight — the "glass" catch-light */
+  .glass::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 18%);
+    opacity: 0.7;
+  }
+
+  /* — Floating chrome (menus, dialogs, tooltips, toaster) ———————————————
+     Translucent + backdrop-blur (small / transient, so the blur is affordable). */
+  .surface-glass {
+    position: relative;
+    border: 1px solid transparent;
+    background:
+      linear-gradient(
+          color-mix(in oklab, var(--popover) 86%, transparent),
+          color-mix(in oklab, var(--popover) 86%, transparent)
+        )
+        padding-box,
+      linear-gradient(
+          140deg,
+          color-mix(in oklab, var(--neon-1) 40%, transparent),
+          color-mix(in oklab, var(--neon-2) 16%, transparent) 60%,
+          color-mix(in oklab, var(--neon-3) 26%, transparent)
+        )
+        border-box;
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+    backdrop-filter: blur(16px) saturate(150%);
+  }
+  .surface-glass::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(140deg, var(--neon-1), var(--neon-3));
+    filter: blur(20px);
+    opacity: 0.16;
+  }
+
+  /* — Glow halo (blurred pseudo, no box-shadow) ——————————————————————
+     Tiers override --glow-opacity. Combine with .glow. */
+  .glow {
+    position: relative;
+    isolation: isolate;
+  }
+  .glow::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: var(--glow, var(--neon-1));
+    filter: blur(14px);
+    opacity: var(--glow-opacity);
+    transition: opacity 0.18s var(--ease-cyber);
+  }
+  .glow-sm {
+    --glow-opacity: 0.26;
+  }
+  .glow-md {
+    --glow-opacity: 0.45;
+  }
+  .glow-lg {
+    --glow-opacity: 0.66;
+  }
+
+  /* — Shared field treatment for inputs / textareas / select triggers ——————
+     One recipe: translucent inset surface, translucent cyan edge, neon edge +
+     focus glow (drop-shadow filter, applied only on focus → cheap, no box-shadow). */
+  .field {
+    background-color: color-mix(in oklab, #000 36%, transparent);
+    border: 1px solid var(--input);
+    color: var(--foreground);
+    transition:
+      border-color 0.15s var(--ease-cyber),
+      background-color 0.15s var(--ease-cyber),
+      filter 0.15s var(--ease-cyber);
+  }
+  .field::placeholder {
+    color: var(--muted-foreground);
+  }
+  .field:hover:not(:disabled):not([data-disabled]) {
+    border-color: color-mix(in oklab, var(--neon-1) 45%, transparent);
+  }
+  .field:focus,
+  .field:focus-visible,
+  .field:focus-within {
+    outline: none;
+    border-color: var(--neon-1);
+    background-color: color-mix(in oklab, #000 28%, transparent);
+    filter: drop-shadow(0 0 4px color-mix(in oklab, var(--neon-1) 55%, transparent))
+      drop-shadow(0 0 11px color-mix(in oklab, var(--neon-1) 26%, transparent));
+  }
+  .field:disabled,
+  .field[data-disabled] {
+    opacity: 0.5;
+    filter: saturate(0.5);
+    cursor: not-allowed;
+  }
+
+  /* — Gradient hairline border helper (background-clip) ————————————————
+     Set --grad / --fill to customize; defaults to the cyan→magenta brand edge. */
+  .border-grad {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(var(--fill, var(--card)), var(--fill, var(--card))) padding-box,
+      var(--grad, linear-gradient(135deg, var(--neon-1), var(--neon-3))) border-box;
+  }
+
+  /* — CRT scanline overlay for hero surfaces (preview, dialog overlay) ———— */
+  .scanline {
+    position: relative;
+  }
+  .scanline::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.05) 0,
+      rgba(255, 255, 255, 0.05) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode: overlay;
+    opacity: 0.5;
+  }
+
+  /* — Vertical fade mask for scroll regions (cue that more exists) ———————— */
+  .scroll-fade {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 14px,
+      #000 calc(100% - 14px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 14px,
+      #000 calc(100% - 14px),
+      transparent 100%
+    );
+  }
+
+  /* Radix ScrollArea wraps its content in a `display:table; min-width:100%` div, which
+     sizes to the content's MAX width instead of the viewport — so `truncate`/`flex-1`
+     children can't shrink and rows overflow horizontally (clip cards, "Auto-sort", etc.
+     spilling past the right edge). Force it to block so content constrains to the
+     viewport width. We only ever scroll vertically, so this loses nothing. */
+  [data-radix-scroll-area-viewport] > div {
+    display: block !important;
+  }
+
+  /* — Tabular neon numerics (telemetry: %, ETA, counts, timecodes) ——————— */
+  .numeric {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  /* — Neon HUD chip (aspect badges, status pills, version tags) —————————— */
+  .hud-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border: 1px solid color-mix(in oklab, var(--neon-1) 38%, transparent);
+    background: color-mix(in oklab, var(--neon-1) 10%, transparent);
+    color: var(--neon-1);
+    border-radius: 0.4rem;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-shadow: 0 0 8px color-mix(in oklab, var(--neon-1) 45%, transparent);
+  }
+
+  /* — Neon hairline divider —————————————————————————————————————— */
+  .hairline {
+    height: 1px;
+    border: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--neon-1) 28%, transparent),
+      transparent
+    );
+  }
+
+  /* — Radix collapsible content height animation ————————————————————— */
+  .collapsible-content {
+    overflow: hidden;
+  }
+  .collapsible-content[data-state='open'] {
+    animation: collapsible-down 0.24s var(--ease-cyber);
+  }
+  .collapsible-content[data-state='closed'] {
+    animation: collapsible-up 0.2s var(--ease-cyber);
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   Keyframes (compositor-friendly: transform / opacity / background-position)
+---------------------------------------------------------------------------- */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+@keyframes scan {
+  0% {
+    transform: translateY(-110%);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110%);
+    opacity: 0;
+  }
+}
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes aurora {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(4%, -3%, 0) scale(1.08);
+  }
+  66% {
+    transform: translate3d(-3%, 2%, 0) scale(0.96);
+  }
+}
+@keyframes marching {
+  to {
+    background-position: 24px 0, -24px 100%, 0 -24px, 100% 24px;
+  }
+}
+@keyframes flicker {
+  0%,
+  92%,
+  100% {
+    opacity: 1;
+  }
+  93% {
+    opacity: 0.72;
+  }
+  95% {
+    opacity: 1;
+  }
+  97% {
+    opacity: 0.85;
+  }
+}
+@keyframes collapsible-down {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+}
+@keyframes collapsible-up {
+  from {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+/* Honor the OS reduced-motion preference for CSS keyframes too
+   (framer-motion already respects it via MotionConfig). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  body::before {
+    display: none;
+  }
+}

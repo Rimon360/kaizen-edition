@@ -1,0 +1,27 @@
+node_modules
+out
+release
+dist
+*.local
+*.log
+
+# Secrets — NEVER commit. .env holds the live API / HMAC request-signing secrets;
+# the publish repo is public, so a stray `git add .` would leak them.
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+node_modules/.tmp
+doc.md
+
+# Voice-cloning sidecar build artifacts (built on a Python 3.11 machine)
+python/.venv
+python/dist
+python/build
+python/__pycache__
+python/*.spec
+# Staged model weights (~3 GB) — bundled into the installer, never committed
+python/model

@@ -1,0 +1,18 @@
+# KAIZEN EDITION — voice-cloning sidecar dependencies.
+#
+# BUILD WITH PYTHON 3.11 (or 3.12). PyTorch/Chatterbox wheels target CPython
+# 3.9–3.12; the dev machine's 3.14 is intentionally NOT used for the sidecar.
+#
+# chatterbox-tts is Resemble AI's official model, MIT-licensed (code + weights).
+# It pulls torch==2.6.0, torchaudio==2.6.0, transformers, librosa, etc. transitively.
+# Pinned to the version verified working end-to-end (Spanish clone on Python 3.11 CPU).
+chatterbox-tts==0.1.7
+
+# Packaging tool (builds the standalone sidecar exe; see README.md).
+pyinstaller
+
+# IMPORTANT — install CPU torch 2.6.0 (the version chatterbox pins) from the CPU
+# wheel index BEFORE this file, so chatterbox finds it satisfied instead of pulling
+# the CUDA build and then downgrading:
+#   pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+#   pip install -r requirements.txt

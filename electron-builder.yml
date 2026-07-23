@@ -1,0 +1,86 @@
+appId: com.kaizen.edition
+productName: KAIZEN EDITION
+copyright: © appCBL
+
+directories:
+  output: release
+  buildResources: build
+
+# electron-vite emits everything to out/. Ship that + package.json;
+# electron-builder pulls production dependencies from node_modules automatically.
+files:
+  - out/**/*
+  - package.json
+
+asar: true
+# Extract the spawn-able binaries OUT of the asar so child_process can exec them.
+# (Paired with the app.asar -> app.asar.unpacked rewrite in electron/main/ffmpeg.ts.)
+asarUnpack:
+  - node_modules/ffmpeg-static/**
+  - node_modules/ffprobe-static/**
+  # Offline Whisper speech-to-text: native binaries (must run from disk, not asar)
+  # + the transformers runtime. The model itself downloads to userData at runtime.
+  - node_modules/onnxruntime-node/**
+  - node_modules/sharp/**
+  - node_modules/@xenova/transformers/**
+
+# Voice-cloning engine (Chatterbox sidecar, ~0.8 GB). Bundled in the installer so
+# cloning works without Python. Build it first on a Python 3.11/3.12 machine:
+#   npm run sidecar:build   -> python/dist/chatterbox-sidecar (PyInstaller exe + torch)
+# The ~3 GB MODEL is deliberately NOT bundled here: NSIS can't exceed ~2 GB, and a
+# static model shouldn't ride along on every auto-update. It downloads once on first
+# use into userData (see electron/main/modelDownload.ts). If python/dist isn't built
+# yet, comment this block out to ship a lean app (cloning then shows "needs setup").
+extraResources:
+  - from: python/dist/chatterbox-sidecar
+    to: chatterbox-sidecar
+    filter: ["**/*"]
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  # Assisted installer: a fresh install shows the wizard so the user can CHOOSE the
+  # install folder (allowToChangeInstallationDirectory). Auto-updates re-run this same
+  # wizard with its progress window (updater.ts calls quitAndInstall(false, ...)) — the
+  # user clicks through Next/Install, and the big ~775 MB sidecar unpack is visible
+  # instead of a silent blank gap that looks like a hang. The chosen folder is
+  # remembered, so updates reinstall to the same place.
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  allowElevation: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: KAIZEN EDITION
+  # Custom hook: force-kill the bundled sidecar (+ any stuck app) before install/
+  # uninstall so a reinstall/auto-update can replace locked files instead of
+  # hanging — the root cause of "won't open after update". See build/installer.nsh.
+  include: build/installer.nsh
+  # Make reinstall robust: always uninstall the old version first (clean dir),
+  # and don't wipe userData (the downloaded model + cloned voices live there).
+  deleteAppDataOnUninstall: false
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.video
+
+linux:
+  target:
+    - AppImage
+  category: AudioVideo
+
+# Auto-update channel. Release files (Setup .exe, latest.yml, *.blockmap) are
+# published to this PUBLIC repo so every installed app can download updates.
+# Same GitHub account as the sibling kaizen_desktop app (clubbusinesslatam526-glitch),
+# but its OWN repo so KAIZEN EDITION updates never collide with KAIZEN's.
+# Keep this repo public for updates to work.
+publish:
+  - provider: github
+    owner: Rimon360
+    repo: kaizen-edition
+    releaseType: release
